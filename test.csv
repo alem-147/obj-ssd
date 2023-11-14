@@ -1,0 +1,3 @@
+average_precision,average_inference_time,average_fps,note
+0.459,0.0081,122.87,base
+0.4590482215831956,0.006706345435497422,149.1125098786129,base

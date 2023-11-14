@@ -14,6 +14,7 @@ import logging
 import sys
 from vision.ssd.mobilenet_v2_ssd_lite import create_mobilenetv2_ssd_lite, create_mobilenetv2_ssd_lite_predictor
 from vision.ssd.mobilenetv3_ssd_lite import create_mobilenetv3_large_ssd_lite, create_mobilenetv3_small_ssd_lite
+import pandas as pd
 
 parser = argparse.ArgumentParser(description="SSD Evaluation on VOC Dataset.")
 parser.add_argument('--net', default="vgg16-ssd",
@@ -31,6 +32,8 @@ parser.add_argument("--iou_threshold", type=float, default=0.5, help="The thresh
 parser.add_argument("--eval_dir", default="eval_results", type=str, help="The directory to store evaluation results.")
 parser.add_argument('--mb2_width_mult', default=1.0, type=float,
                     help='Width Multiplifier for MobilenetV2')
+parser.add_argument("--csv", default='')
+parser.add_argument("--implementation_note", default='')
 args = parser.parse_args()
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() and args.use_cuda else "cpu")
 
@@ -172,14 +175,14 @@ if __name__ == '__main__':
     results = []
     inference_times = []
     for i in range(len(dataset)):
-        print("process image", i)
+        #print("process image", i)
         timer.start("Load Image")
         image = dataset.get_image(i)
-        print("Load Image: {:4f} seconds.".format(timer.end("Load Image")))
+        #print("Load Image: {:4f} seconds.".format(timer.end("Load Image")))
         timer.start("Predict")
         boxes, labels, probs, inference_time = predictor.predict(image)
         inference_times.append(inference_time)
-        print("Prediction: {:4f} seconds.".format(timer.end("Predict")))
+        #print("Prediction: {:4f} seconds.".format(timer.end("Predict")))
         indexes = torch.ones(labels.size(0), 1, dtype=torch.float32) * i
         results.append(torch.cat([
             indexes.reshape(-1, 1),
@@ -216,7 +219,18 @@ if __name__ == '__main__':
         )
         aps.append(ap)
         print(f"{class_name}: %.4f" % ap)
-
-    print(f"\nAverage Precision Across All Classes: %.4f" % (sum(aps) / len(aps)))
-    print(f"\nAverage Inference Time per Image: %.4f" % (sum(inference_times) / len(dataset)))
-    print(f"\nAverage FPS per Image: %.2f" % (1 / (sum(inference_times) / len(dataset))))
+    average_precision = (sum(aps) / len(aps))
+    average_inference_time = (sum(inference_times) / len(dataset))
+    average_fps = (1 / (sum(inference_times) / len(dataset)))
+    print(f"\nAverage Precision Across All Classes: %.4f" % average_precision)
+    print(f"\nAverage Inference Time per Image: %.4f" % average_inference_time)
+    print(f"\nAverage FPS per Image: %.2f" % average_fps)
+    
+    # write out results to csv
+    if args.csv != '':
+        old_runs = pd.read_csv(args.csv)
+        data = {'average_precision': [average_precision], 'average_inference_time': [average_inference_time], 'average_fps':[average_fps], 'note':args.implementation_note}
+        new_run = pd.DataFrame.from_dict(data) 
+        new_csv = pd.concat([old_runs,new_run], ignore_index=True)
+        new_csv.to_csv(args.csv, index=False)
+        
